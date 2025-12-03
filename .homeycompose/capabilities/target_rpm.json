@@ -1,0 +1,14 @@
+{
+  "type": "number",
+  "title": {
+    "en": "Target Fan Speed (RPM)"
+  },
+  "units": {
+    "en": "rpm"
+  },
+  "getable": true,
+  "setable": true,
+  "min": 800,
+  "max": 2400,
+  "uiComponent": "slider"
+}

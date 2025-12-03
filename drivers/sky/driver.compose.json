@@ -1,0 +1,83 @@
+{
+  "name": {
+    "en": "Intellivent SKY"
+  },
+  "class": "fan",
+  "capabilities": [
+    "measure_temperature",
+    "measure_humidity",
+    "measure_rpm",
+    "target_rpm",
+    "onoff",
+    "boost_mode",
+    "pause_mode",
+    "constant_speed_mode",
+    "humidity_mode",
+    "light_mode",
+    "airing_mode"
+  ],
+  "platforms": [
+    "local"
+  ],
+  "connectivity": [
+    "ble"
+  ],
+  "pair": [
+    {
+      "id": "list_devices",
+      "template": "list_devices"
+    }
+  ],
+  "settings": [
+    {
+      "id": "auth_code",
+      "type": "text",
+      "label": {
+        "en": "Authentication Code"
+      },
+      "hint": {
+        "en": "Leave empty to read from device (requires pairing mode)"
+      }
+    },
+    {
+      "id": "humidity_rpm",
+      "type": "number",
+      "label": { "en": "Humidity RPM" },
+      "value": 2000,
+      "attr": { "min": 800, "max": 2400 }
+    },
+    {
+      "id": "humidity_detection",
+      "type": "dropdown",
+      "label": { "en": "Humidity Detection Level" },
+      "value": "1",
+      "values": [
+        { "id": "0", "label": { "en": "Off" } },
+        { "id": "1", "label": { "en": "Low" } },
+        { "id": "2", "label": { "en": "Medium" } },
+        { "id": "3", "label": { "en": "High" } }
+      ]
+    },
+    {
+      "id": "boost_rpm",
+      "type": "number",
+      "label": { "en": "Boost RPM" },
+      "value": 2400,
+      "attr": { "min": 800, "max": 2400 }
+    },
+    {
+      "id": "boost_minutes",
+      "type": "number",
+      "label": { "en": "Boost Duration (min)" },
+      "value": 10,
+      "attr": { "min": 0 }
+    },
+    {
+      "id": "pause_minutes",
+      "type": "number",
+      "label": { "en": "Pause Duration (min)" },
+      "value": 60,
+      "attr": { "min": 0 }
+    }
+  ]
+}

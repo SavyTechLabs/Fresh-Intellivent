@@ -1,0 +1,13 @@
+{
+  "type": "number",
+  "title": {
+    "en": "Fan Speed (RPM)"
+  },
+  "units": {
+    "en": "rpm"
+  },
+  "getable": true,
+  "setable": false,
+  "min": 0,
+  "max": 3000
+}

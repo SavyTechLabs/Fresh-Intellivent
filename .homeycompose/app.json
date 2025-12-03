@@ -1,0 +1,19 @@
+{
+  "id": "com.fresh.intellivent",
+  "version": "1.0.0",
+  "compatibility": ">=10.0.0",
+  "sdk": 3,
+  "name": {
+    "en": "Fresh Intellivent"
+  },
+  "description": {
+    "en": "Control your Fresh Intellivent SKY fans via Bluetooth"
+  },
+  "author": {
+    "name": "SavyTechLabs"
+  },
+  "category": "climate",
+  "permissions": [
+    "homey:wireless:ble"
+  ]
+}

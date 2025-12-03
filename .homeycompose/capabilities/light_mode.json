@@ -1,0 +1,9 @@
+{
+  "type": "boolean",
+  "title": {
+    "en": "Light/VOC Mode"
+  },
+  "getable": true,
+  "setable": true,
+  "uiComponent": "toggle"
+}
