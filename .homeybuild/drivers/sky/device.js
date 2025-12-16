@@ -1,12 +1,26 @@
 const Homey = require('homey');
 const FreshIntelliventSky = require('../../lib/sky');
+const ConnectionManager = require('../../lib/ConnectionManager');
+const KeyStore = require('../../lib/KeyStore');
 
 class SkyDevice extends Homey.Device {
   async onInit() {
     this.log('SkyDevice has been initialized');
     try {
-        this.sky = null;
+        this.connectionManager = new ConnectionManager(this.homey, this.getData().uuid);
+        this.sky = new FreshIntelliventSky(this.connectionManager);
         this.pollTimer = null;
+
+        /*
+        // Migration: Move auth_code from settings to KeyStore
+        const authCode = this.getSetting('auth_code');
+        if (authCode) {
+            this.log('Migrating auth code to KeyStore');
+            const keyStore = new KeyStore(this.homey);
+            await keyStore.save(this.getData().uuid, { code: authCode });
+            await this.setSettings({ auth_code: null }); // Clear setting
+        }
+        */
 
         // Register listeners
         this.registerCapabilityListener('boost_mode', this.onCapabilityBoost.bind(this));
@@ -17,11 +31,9 @@ class SkyDevice extends Homey.Device {
         this.registerCapabilityListener('airing_mode', this.onCapabilityAiring.bind(this));
         this.registerCapabilityListener('target_rpm', this.onCapabilityTargetRpm.bind(this));
 
-        // Delay connection to ensure device is fully initialized and added
-        // We use a slightly longer delay to be safe
-        setTimeout(() => {
-            this.connect().catch(err => this.error('Connect failed in onInit:', err));
-        }, 2000);
+        this.setAvailable();
+        this.poll();
+        this.pollTimer = setInterval(() => this.poll(), 60000);
         
         this.log('onInit completed successfully');
     } catch (err) {
@@ -31,71 +43,12 @@ class SkyDevice extends Homey.Device {
 
   async onDeleted() {
     if (this.pollTimer) clearInterval(this.pollTimer);
-    if (this.sky && this.sky.peripheral) {
-      await this.sky.peripheral.disconnect().catch(() => {});
-    }
-  }
-
-  async connect() {
-    if (this.sky) return;
-    
-    try {
-      const uuid = this.getData().uuid;
-      this.log('Connecting to device with UUID:', uuid);
-      const peripheral = await this.homey.ble.find(uuid);
-      if (!peripheral) throw new Error('Device not found');
-
-      this.log('Device found, connecting...');
-      await peripheral.connect();
-      this.log('Connected to device');
-      this.sky = new FreshIntelliventSky(peripheral);
-
-      let authCode = this.getSetting('auth_code');
-      if (!authCode) {
-        try {
-          this.log('Fetching auth code...');
-          // Add timeout for fetching auth code
-          const fetchPromise = this.sky.fetchAuthCode();
-          const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout fetching auth code')), 5000));
-          authCode = await Promise.race([fetchPromise, timeoutPromise]);
-          
-          if (authCode && authCode !== '00000000') {
-             this.setSettings({ auth_code: authCode });
-             this.log('Auth code fetched and saved:', authCode);
-          } else {
-             this.log('Auth code is empty or zero');
-          }
-        } catch (err) {
-          this.log('Could not fetch auth code (not in pairing mode?)', err);
-        }
-      }
-
-      if (authCode) {
-        this.log('Authenticating with code:', authCode);
-        try {
-            await this.sky.authenticate(authCode);
-            this.log('Authenticated');
-        } catch (err) {
-            this.error('Authentication failed:', err);
-            // Continue anyway to try reading sensors
-        }
-      } else {
-        this.log('No auth code available, skipping authentication');
-      }
-
-      this.setAvailable();
-      this.poll();
-      this.pollTimer = setInterval(() => this.poll(), 60000);
-    } catch (err) {
-      this.error('Connection error:', err);
-      this.setUnavailable(err.message);
-      this.sky = null;
-      setTimeout(() => this.connect(), 30000);
+    if (this.connectionManager) {
+      await this.connectionManager.disconnect();
     }
   }
 
   async poll() {
-    if (!this.sky) return;
     try {
       const sensorData = await this.sky.getSensorData();
       await this.setCapabilityValue('measure_rpm', sensorData.rpm);
@@ -119,19 +72,19 @@ class SkyDevice extends Homey.Device {
       
       const airing = await this.sky.getAiring();
       await this.setCapabilityValue('airing_mode', airing.enabled);
+      
+      if (!this.getAvailable()) {
+          this.setAvailable();
+      }
 
     } catch (err) {
       this.error('Polling error:', err);
-      this.sky = null;
-      clearInterval(this.pollTimer);
       this.setUnavailable(err.message);
-      this.connect();
+      // Do not clear timer, ConnectionManager handles backoff/retry on next call
     }
   }
 
   async onSettings({ oldSettings, newSettings, changedKeys }) {
-    if (!this.sky) throw new Error('Not connected');
-
     if (changedKeys.includes('humidity_rpm') || changedKeys.includes('humidity_detection')) {
       const current = await this.sky.getHumidity();
       await this.sky.setHumidity(
@@ -160,49 +113,46 @@ class SkyDevice extends Homey.Device {
 
     if (changedKeys.includes('auth_code')) {
        if (newSettings.auth_code) {
-         await this.sky.authenticate(newSettings.auth_code);
+         const keyStore = new KeyStore(this.homey);
+         await keyStore.save(this.getData().uuid, { code: newSettings.auth_code });
+         // Trigger re-auth? ConnectionManager will use it next time.
+         // We can force disconnect to ensure re-auth happens.
+         await this.connectionManager.disconnect();
        }
     }
   }
 
   async onCapabilityTargetRpm(value) {
-    if (!this.sky) throw new Error('Not connected');
     const current = await this.sky.getConstantSpeed();
     await this.sky.setConstantSpeed(current.enabled, value);
   }
 
   async onCapabilityBoost(value) {
-    if (!this.sky) throw new Error('Not connected');
     const current = await this.sky.getBoost();
     await this.sky.setBoost(value, current.minutes, current.rpm);
   }
 
   async onCapabilityPause(value) {
-    if (!this.sky) throw new Error('Not connected');
     const current = await this.sky.getPause();
     await this.sky.setPause(value, current.minutes);
   }
 
   async onCapabilityConstantSpeed(value) {
-    if (!this.sky) throw new Error('Not connected');
     const current = await this.sky.getConstantSpeed();
     await this.sky.setConstantSpeed(value, current.rpm);
   }
 
   async onCapabilityHumidity(value) {
-    if (!this.sky) throw new Error('Not connected');
     const current = await this.sky.getHumidity();
     await this.sky.setHumidity(value, current.detection, current.rpm);
   }
 
   async onCapabilityLight(value) {
-    if (!this.sky) throw new Error('Not connected');
     const current = await this.sky.getLightVOC();
     await this.sky.setLightVOC(value, current.light.detection, current.voc.enabled, current.voc.detection);
   }
 
   async onCapabilityAiring(value) {
-    if (!this.sky) throw new Error('Not connected');
     const current = await this.sky.getAiring();
     await this.sky.setAiring(value, current.runTime, current.rpm);
   }

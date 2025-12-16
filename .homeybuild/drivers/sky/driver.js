@@ -1,8 +1,11 @@
 const Homey = require('homey');
+const ConnectionManager = require('../../lib/ConnectionManager');
+const FreshIntelliventSky = require('../../lib/sky');
+const KeyStore = require('../../lib/KeyStore');
 
 class SkyDriver extends Homey.Driver {
   async onPair(session) {
-    this.log('onPair session started v4 - Single Step');
+    this.log('onPair session started');
 
     session.setHandler('list_devices', async () => {
       this.log('list_devices handler called');
@@ -18,13 +21,6 @@ class SkyDriver extends Homey.Driver {
               id: device.uuid,
               uuid: device.uuid,
               address: device.address
-            },
-            store: {
-              id: device.uuid,
-              address: device.address
-            },
-            settings: {
-              auth_code: ''
             }
           };
           this.log('Found device:', JSON.stringify(deviceObj));
