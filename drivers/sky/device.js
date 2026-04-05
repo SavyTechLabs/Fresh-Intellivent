@@ -296,7 +296,7 @@ class SkyDevice extends Homey.Device {
     const enabled = this.getCapabilityValue('constant_speed_mode') !== false;
     const rpm = Math.round(value);
     // write integer RPM to the fan
-    await this._executeWrite('Set target RPM', () => this.sky.setConstantSpeed(enabled, value));
+    await this._executeWrite('Set target RPM', () => this.sky.setConstantSpeed(enabled, rpm));
     // ensure the capability is stored/displayed as integer as well
     await this.setCapabilityValue('target_rpm', rpm).catch(() => null);
   }
@@ -319,7 +319,7 @@ class SkyDevice extends Homey.Device {
 
   async onCapabilityConstantSpeed(value) {
     // Use cached target_rpm value
-    const rpm = this.getCapabilityValue('target_rpm') || 1009;
+    const rpm = this.getCapabilityValue('target_rpm') || 1200;
     await this._executeWrite('Set constant speed', () => this.sky.setConstantSpeed(value, rpm));
   }
 
@@ -398,6 +398,115 @@ class SkyDevice extends Homey.Device {
       await this.setSettings(updates);
     }
   }
+
+  /** Called by the Flow Action run listener: args.device.startConstantSpeedRPM() **/
+  async startConstantSpeedRPM(requestedRpm) {
+    this.log('startConstantSpeedRPM called with:', requestedRpm);
+
+    // Fallback default if not provided
+    let rpm = Number(requestedRpm);
+    if (!Number.isFinite(rpm)) rpm = 1200;
+
+    // Clamp to supported range
+    const MIN_RPM = 800;
+    const MAX_RPM = 2400;
+    rpm = Math.max(MIN_RPM, Math.min(MAX_RPM, Math.round(rpm)));
+
+    const enabled = true; // Force state
+
+    // Send the command to the fan
+    try {
+      if (typeof this._executeWrite === 'function') {
+        await this._executeWrite('Set constant speed', () => this.sky.setConstantSpeed(enabled, rpm));
+      } else {
+        await this.sky.setConstantSpeed(enabled, rpm);
+      }
+    } catch (e) {
+      this.error('Failed to send constant speed command:', e);
+      throw e;
+    }
+
+    // Reflect state in capabilities
+    try {
+      if (this.hasCapability('target_rpm')) {
+        await this.setCapabilityValue('target_rpm', rpm);
+      }
+      if (this.hasCapability('constant_speed_mode')) {
+        await this.setCapabilityValue('constant_speed_mode', true);
+      }
+    } catch (e) {
+      this.error('Failed to set capability values:', e);
+    }
+
+    this.log(`Constant speed mode enabled at ${rpm} RPM`);
+    return true;
+  }
+
+  /** Called by the Flow Action run listener: args.device.stopConstantSpeed() **/
+  async stopConstantSpeed() {
+    this.log('stopconstantspeed called');
+
+    const enabled = false; // Force state
+
+    // Send the command to the fan
+    try {
+      if (typeof this._executeWrite === 'function') {
+        await this._executeWrite('Set constant speed', () => this.sky.setConstantSpeed(enabled));
+      } else {
+        await this.sky.setConstantSpeed(enabled);
+      }
+    } catch (e) {
+      this.error('Failed to send constant speed command:', e);
+      throw e;
+    }
+
+    // Reflect state in capabilities
+    try {
+      if (this.hasCapability('constant_speed_mode')) {
+        await this.setCapabilityValue('constant_speed_mode', false);
+      }
+    } catch (e) {
+      this.error('Failed to set capability values:', e);
+    }
+
+    this.log(`Constant speed mode disabled`);
+    return true;
+  }
+
+  /** Called by the Flow Action run listener: args.device.startBoostDuration() **/
+  async startBoostDuration(minutes) {
+    const rpm = parseInt(this.getSetting('boost_rpm')) || 2400;
+
+    let mins = Number(minutes);
+
+    // Clamp to supported range
+    const MIN_Timer = 1;
+    const MAX_Timer = 120;
+    minutes = Math.max(MIN_Timer, Math.min(MAX_Timer, Math.round(mins)));
+
+    const seconds = minutes * 60; // Convert minutes to seconds as that is the value sent to the Fan
+
+    const enabled = true; // Force state
+
+    await this._executeWrite('Set boost', () => this.sky.setBoost(enabled, rpm, seconds));
+
+    // Reflect state in capabilities
+    try {
+      if (this.hasCapability('boost_mode')) {
+        await this.setCapabilityValue('boost_mode', true);
+      }
+    } catch (e) {
+      this.error('Failed to set capability values:', e);
+    }
+
+    this.log(`Boost Mode enabled for ${minutes} Minutes`);
+    return true;
+  }
+
+
+  /** Placeholder for upcoming flow **/
+
+
 }
 
 module.exports = SkyDevice;

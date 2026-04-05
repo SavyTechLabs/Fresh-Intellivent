@@ -1,9 +1,10 @@
 {
   "type": "boolean",
   "title": {
-    "en": "Light/VOC Mode"
+    "en": "Light Mode"
   },
   "getable": true,
   "setable": true,
-  "uiComponent": "toggle"
+  "uiComponent": "button",
+  "icon": "/assets/light_icon.svg"
 }
